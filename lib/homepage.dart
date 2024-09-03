@@ -23,7 +23,7 @@ class _HomePageState extends State<HomePage> {
   // ball variables
   double ballX = 0.0;
   double ballY = 0.0;
-  double ballXIncrements = 0.01;
+  double ballXIncrements = 0.02;
   double ballYIncrements = 0.01;
   var ballYDirection = Direction.down;
   var ballXDirection = Direction.left;
@@ -37,11 +37,21 @@ class _HomePageState extends State<HomePage> {
   double playerWidth = 0.3; // out of 2
 
   // brick variables
-  double brickX = 0;
-  double brickY = -0.9;
-  double brickWidth = 0.4; // out of 2
-  double brickHeight = 0.05; // out of 2
-  bool brickBroken = false;
+  // for reference on what the variables mean, visit the tutorial
+  static double firstBrickX = -1 + wallGap;
+  static double firstBrickY = -0.9;
+  static double brickWidth = 0.4; // out of 2
+  static double brickHeight = 0.05; // out of 2
+  static double brickGap = 0.01;
+  static int n = 3; // n is number of bricks in each row
+  static double wallGap = 0.5 * (2 - n * brickWidth - (n - 1) * brickGap);
+
+  List myBricks = [
+    // [x, y, broken = true/false]
+    [firstBrickX + 0 * (brickWidth + brickGap), firstBrickY, false],
+    [firstBrickX + 1 * (brickWidth + brickGap), firstBrickY, false],
+    [firstBrickX + 2 * (brickWidth + brickGap), firstBrickY, false]
+  ];
 
   // start Game
   void startGame() {
@@ -65,16 +75,72 @@ class _HomePageState extends State<HomePage> {
   }
 
   void checkForBrokenBricks() {
-    // check for when ball hits bottom of thr brick
-    if (ballX >= brickX &&
-        ballX <= brickX + brickWidth &&
-        ballY <= brickY + brickHeight &&
-        brickBroken == false) {
-      setState(() {
-        brickBroken = true;
-        ballYDirection = Direction.down;
-      });
+    // check for when ball is inside the brick (aka hits the brick)
+    for (int i = 0; i < myBricks.length; i++) {
+      if (ballX >= myBricks[i][0] &&
+          ballX <= myBricks[i][0] + brickWidth &&
+          ballY <= myBricks[i][1] + brickHeight &&
+          myBricks[i][2] == false) {
+        setState(() {
+          myBricks[i][2] = true;
+
+          // since brick is broken, update the direction of the ball
+          // based on the side of the brick it hit
+          // to do this, calculate the distance of the ball from each of the
+          // 4 sides. The smallest distance is the side the ball hit
+
+          double leftSideDist = (myBricks[i][0] - ballX).abs();
+          double righrSideDist = (myBricks[i][0] + brickWidth - ballX).abs();
+          double topSideDist = (myBricks[i][1] - ballY).abs();
+          double bottomSideDist = (myBricks[i][1] + brickHeight - ballY).abs();
+
+          String min = findMin(
+            leftSideDist,
+            righrSideDist,
+            topSideDist,
+            bottomSideDist,
+          );
+
+          switch (min) {
+            case "left":
+              ballXDirection = Direction.left;
+              break;
+            case "right":
+              ballXDirection = Direction.right;
+              break;
+            case "top":
+              ballYDirection = Direction.up;
+              break;
+            case "bottom":
+              ballYDirection = Direction.down;
+              break;
+          }
+        });
+      }
     }
+  }
+
+  // returns the smallest side
+  String findMin(double a, double b, double c, double d) {
+    List<double> myList = [a, b, c, d];
+
+    double currentMin = a;
+    for (int i = 1; i < myList.length; i++) {
+      if (myList[i] < currentMin) {
+        currentMin = myList[i];
+      }
+    }
+
+    if ((currentMin - a).abs() < 0.01) {
+      return "left";
+    } else if ((currentMin - b).abs() < 0.01) {
+      return "right";
+    } else if ((currentMin - c).abs() < 0.01) {
+      return "top";
+    } else if ((currentMin - d).abs() < 0.01) {
+      return "bottom";
+    }
+    return "";
   }
 
   // is player dead
@@ -106,10 +172,22 @@ class _HomePageState extends State<HomePage> {
   // update direction of the ball
   void updateDirection() {
     setState(() {
+      // ball goes up when  it hits player
       if (ballY >= 0.9 && ballX >= playerX && ballX <= playerX + playerWidth) {
         ballYDirection = Direction.up;
-      } else if (ballY <= -1) {
+      }
+      // ball goes down when it hits top of the screen
+      else if (ballY <= -1) {
         ballYDirection = Direction.down;
+      }
+
+      // ball goes left when it hits right wall
+      if (ballX >= 1) {
+        ballXDirection = Direction.left;
+      }
+      // ball goes right when it hits right wall
+      else if (ballX <= -1) {
+        ballXDirection = Direction.right;
       }
     });
   }
@@ -127,6 +205,23 @@ class _HomePageState extends State<HomePage> {
     // only move left if moving left doesn't move player off the screen
     setState(() {
       if (!(playerX + playerWidth >= 1)) playerX += 0.2;
+    });
+  }
+
+  // reset game back to initial values when user hits play again
+  void resetGame() {
+    setState(() {
+      playerX = -0.2;
+      ballX = 0.0;
+      ballY = 0.0;
+      isGameOver = false;
+      hasGameStarted = false;
+      myBricks = [
+        // [x, y, broken = true/false]
+        [firstBrickX + 0 * (brickWidth + brickGap), firstBrickY, false],
+        [firstBrickX + 1 * (brickWidth + brickGap), firstBrickY, false],
+        [firstBrickX + 2 * (brickWidth + brickGap), firstBrickY, false]
+      ];
     });
   }
 
@@ -153,16 +248,22 @@ class _HomePageState extends State<HomePage> {
               children: [
                 // tap to play
                 CoverScreen(
+                  isGameOver: isGameOver,
                   hasGameStarted: hasGameStarted,
                 ),
 
                 // game over screen
-                GameOverScreen(isGameOver: isGameOver),
+                GameOverScreen(
+                  isGameOver: isGameOver,
+                  function: resetGame,
+                ),
 
                 // ball
                 MyBall(
                   ballX: ballX,
                   ballY: ballY,
+                  hasGameStarted: hasGameStarted,
+                  isGameOver: isGameOver,
                 ),
 
                 // player
@@ -175,9 +276,23 @@ class _HomePageState extends State<HomePage> {
                 MyBrick(
                   brickHeight: brickHeight,
                   brickWidth: brickWidth,
-                  brickX: brickX,
-                  brickY: brickY,
-                  brickBroken: brickBroken,
+                  brickX: myBricks[0][0],
+                  brickY: myBricks[0][1],
+                  brickBroken: myBricks[0][2],
+                ),
+                MyBrick(
+                  brickHeight: brickHeight,
+                  brickWidth: brickWidth,
+                  brickX: myBricks[1][0],
+                  brickY: myBricks[1][1],
+                  brickBroken: myBricks[1][2],
+                ),
+                MyBrick(
+                  brickHeight: brickHeight,
+                  brickWidth: brickWidth,
+                  brickX: myBricks[2][0],
+                  brickY: myBricks[2][1],
+                  brickBroken: myBricks[2][2],
                 ),
               ],
             ),
